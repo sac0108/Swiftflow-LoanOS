@@ -10,35 +10,80 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" integrity="sha512-SnH5WK+bZxgPHs44uWix+LLJAJ9/2PkPKZ5QiAj6Ta86w+fsb2TkR4j8R+4P9Q+M9K5x4h7C2f8y+5l6M5x5vA==" crossorigin="anonymous" referrerpolicy="no-referrer" />
   <style>
-    body { font-family: 'Inter', sans-serif; }
-    .glass-card { background: rgba(255,255,255,0.75); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.65); }
+    :root {
+      --bg-start: #0B0F14;
+      --bg-end: #111827;
+      --gold: #D4AF37;
+      --gold-soft: #C9A24D;
+      --emerald: #10B981;
+    }
+    body {
+      font-family: 'Inter', sans-serif;
+      background: radial-gradient(circle at 10% 0%, #1b2636 0%, var(--bg-start) 38%, var(--bg-end) 100%);
+      color: #e5e7eb;
+      letter-spacing: 0.01em;
+    }
+    .glass-card {
+      background: linear-gradient(155deg, rgba(18, 24, 33, 0.78), rgba(10, 16, 24, 0.62));
+      backdrop-filter: blur(18px);
+      border: 1px solid rgba(212, 175, 55, 0.42);
+      box-shadow: 0 18px 34px rgba(2, 6, 23, 0.58), inset 0 1px 0 rgba(255,255,255,0.05);
+    }
+    .step-section { transition: opacity .45s ease, transform .45s ease; }
+    .slide-fade-in { animation: slideFadeIn .5s ease; }
     .pulse-cta { animation: pulseGlow 1.8s infinite; }
     .spin { animation: spin 0.9s linear infinite; }
     .float-badge { animation: floatY 2.4s ease-in-out infinite; }
     .fade-up { animation: fadeUp .45s ease; }
     .confetti-piece { position: absolute; width: 8px; height: 14px; top: -20px; opacity: .9; animation: fall 2.8s linear forwards; }
+    .bg-white, .bg-slate-50, .bg-slate-100 { background: rgba(15, 23, 34, 0.72) !important; }
+    .border-slate-200, .border-slate-300 { border-color: rgba(201, 162, 77, 0.35) !important; }
+    .text-slate-900, .text-slate-800, .text-slate-700 { color: #f3f4f6 !important; }
+    .text-slate-600, .text-slate-500 { color: #94a3b8 !important; }
+    .bg-blue-900, .bg-blue-800 {
+      background: linear-gradient(130deg, #0f1d34 0%, #070d16 100%) !important;
+      border: 1px solid rgba(212, 175, 55, 0.65) !important;
+      box-shadow: 0 8px 18px rgba(0,0,0,.45);
+    }
+    .hover\:bg-blue-800:hover, .hover\:bg-blue-200:hover, .hover\:bg-slate-50:hover {
+      background: linear-gradient(130deg, #162640 0%, #0b1524 100%) !important;
+      box-shadow: 0 0 0 1px rgba(212, 175, 55, .55), 0 0 22px rgba(201,162,77,.2) !important;
+    }
+    .bg-emerald-50 { background: rgba(16, 185, 129, 0.12) !important; }
+    .bg-emerald-100 { background: rgba(16, 185, 129, 0.16) !important; }
+    .border-emerald-300 { border-color: rgba(16, 185, 129, 0.45) !important; }
+    .text-emerald-700, .text-emerald-800, .text-emerald-600 { color: #34d399 !important; }
+    .text-amber-700, .text-amber-600 { color: var(--gold-soft) !important; }
+    input, select {
+      background: rgba(15, 23, 34, 0.88) !important;
+      border-color: rgba(201, 162, 77, 0.45) !important;
+      color: #f9fafb !important;
+    }
+    input::placeholder { color: #64748b; }
+    .focus\:ring-blue-300:focus { --tw-ring-color: rgba(212, 175, 55, 0.45) !important; }
     @keyframes spin { to { transform: rotate(360deg);} }
     @keyframes pulseGlow {
-      0%,100% { box-shadow: 0 0 0 0 rgba(30,64,175,0.38); }
-      50% { box-shadow: 0 0 0 14px rgba(30,64,175,0); }
+      0%,100% { box-shadow: 0 0 0 0 rgba(201,162,77,0.26); }
+      50% { box-shadow: 0 0 0 14px rgba(201,162,77,0); }
     }
     @keyframes floatY {
       0%,100% { transform: translateY(0);} 50% { transform: translateY(-6px);} }
     @keyframes fadeUp { from { opacity: 0; transform: translateY(8px);} to { opacity: 1; transform: translateY(0);} }
+    @keyframes slideFadeIn { from { opacity: 0; transform: translateY(10px) translateX(-4px);} to { opacity: 1; transform: translateY(0) translateX(0);} }
     @keyframes fall { to { transform: translateY(600px) rotate(540deg); opacity: 0; } }
   </style>
 </head>
-<body class="bg-slate-100 min-h-screen text-slate-800">
+<body class="min-h-screen text-slate-100">
   <div class="max-w-7xl mx-auto px-4 py-8">
     <header class="mb-8">
       <div class="flex items-center justify-between mb-5">
         <div>
-          <h1 class="text-2xl font-extrabold text-slate-900">SwiftLend</h1>
+          <h1 class="text-2xl font-extrabold text-slate-100">SwiftLend</h1>
           <p class="text-sm text-slate-600">Loan Origination System · Parallel Initiation Engine</p>
         </div>
         <div class="text-right">
           <p class="text-xs text-slate-500">Session</p>
-          <p id="session-id" class="font-semibold text-slate-900"></p>
+          <p id="session-id" class="font-semibold text-slate-100"></p>
         </div>
       </div>
       <div id="stepper" class="grid grid-cols-5 gap-2"></div>
@@ -112,9 +157,9 @@ function renderStepper() {
     const isCurrent = num === loanState.currentStep;
     const isDone = num < loanState.currentStep;
     return `
-      <div class="rounded-xl p-3 border ${isCurrent ? 'bg-blue-900 border-blue-800 text-white' : isDone ? 'bg-emerald-50 border-emerald-300 text-emerald-700' : 'bg-white border-slate-200 text-slate-500'} transition-all">
+      <div class="rounded-xl p-3 border ${isCurrent ? 'bg-blue-900 border-blue-800 text-white shadow-lg shadow-amber-300/10' : isDone ? 'bg-emerald-50 border-emerald-300 text-emerald-700' : 'bg-white border-slate-200 text-slate-500'} transition-all">
         <div class="flex items-center gap-2 mb-1 text-xs font-semibold uppercase tracking-wide">
-          <span class="w-5 h-5 rounded-full flex items-center justify-center text-[11px] ${isCurrent ? 'bg-white/20' : isDone ? 'bg-emerald-100' : 'bg-slate-100'}">
+          <span class="w-5 h-5 rounded-full flex items-center justify-center text-[11px] ${isCurrent ? 'bg-white/20 border border-amber-300/50' : isDone ? 'bg-emerald-100' : 'bg-slate-100'}">
             ${isDone ? '<i class="fa-solid fa-check text-emerald-600"></i>' : num}
           </span>
           Step ${num}
@@ -132,7 +177,10 @@ function updateSessionUI() {
 function showStep(stepNo) {
   loanState.currentStep = stepNo;
   document.querySelectorAll('.step-section').forEach((el, idx) => {
-    el.classList.toggle('hidden', idx !== stepNo - 1);
+    const show = idx === stepNo - 1;
+    el.classList.toggle('hidden', !show);
+    el.classList.remove('slide-fade-in');
+    if (show) requestAnimationFrame(() => el.classList.add('slide-fade-in'));
   });
   renderStepper();
   renderStep(stepNo);
@@ -283,7 +331,7 @@ function renderStep2() {
       const timeout = setTimeout(() => {
         const c = document.getElementById(id);
         if (!c) return;
-        c.innerHTML = '<i class="fa-solid fa-circle-check text-emerald-600"></i><span class="text-emerald-700 font-medium">Completed</span>';
+        c.innerHTML = '<i class="fa-solid fa-circle-check text-amber-600"></i><span class="text-emerald-700 font-medium">Completed</span>';
         if (i === 1) {
           loanState.checksComplete = true;
           nextBtn.disabled = false;
@@ -294,7 +342,7 @@ function renderStep2() {
     });
   } else {
     ['check-0','check-1'].forEach((id) => {
-      document.getElementById(id).innerHTML = '<i class="fa-solid fa-circle-check text-emerald-600"></i><span class="text-emerald-700 font-medium">Completed</span>';
+      document.getElementById(id).innerHTML = '<i class="fa-solid fa-circle-check text-amber-600"></i><span class="text-emerald-700 font-medium">Completed</span>';
     });
     nextBtn.disabled = false;
     nextBtn.className = 'pulse-cta px-8 py-4 rounded-xl font-bold text-lg bg-blue-900 text-white hover:bg-blue-800';
@@ -464,14 +512,19 @@ function renderStep4() {
     btn.innerHTML = '<i class="fa-solid fa-spinner spin mr-2"></i>Generating PDF...';
     btn.className = 'px-6 py-3 rounded-lg font-semibold bg-blue-800 text-white';
     setTimeout(() => {
-      loanState.sanctionGenerated = true;
       btn.innerHTML = '<i class="fa-solid fa-circle-check mr-2"></i>Sanction Letter Generated';
+      btn.className = 'px-6 py-3 rounded-lg font-semibold bg-amber-50 text-amber-700 border border-amber-300';
+      st.textContent = 'PDF signed and sealing in progress...';
+      st.className = 'text-sm mt-3 text-amber-700';
+      setTimeout(() => {
+      loanState.sanctionGenerated = true;
       btn.className = 'px-6 py-3 rounded-lg font-semibold bg-emerald-100 text-emerald-700';
       st.textContent = 'PDF generated successfully with e-sign markers.';
       st.className = 'text-sm mt-3 text-emerald-700';
       const next = document.getElementById('step4-next');
       next.disabled = false;
       next.className = 'px-6 py-3 rounded-lg font-semibold bg-blue-900 text-white hover:bg-blue-800';
+      }, 650);
     }, 1700);
   };
 }
@@ -550,6 +603,9 @@ function renderStep5() {
     btn.className = 'px-8 py-3 rounded-lg font-bold bg-blue-800 text-white';
 
     setTimeout(() => {
+      btn.innerHTML = '<i class="fa-solid fa-circle-check mr-2"></i>Transfer Authenticated';
+      btn.className = 'px-8 py-3 rounded-lg font-bold bg-amber-50 text-amber-700 border border-amber-300';
+      setTimeout(() => {
       loanState.disbursementDone = true;
       loanState.transactionRef = `UTR${Math.floor(1000000000 + Math.random()*9000000000)}`;
       loanState.disbursementTs = new Date().toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'medium' });
@@ -559,6 +615,7 @@ function renderStep5() {
       btn.innerHTML = '<i class="fa-solid fa-check mr-2"></i>Disbursement Completed';
       btn.className = 'px-8 py-3 rounded-lg font-bold bg-emerald-600 text-white';
       spawnConfetti(document.getElementById('disb-wrap'));
+      }, 550);
     }, 1900);
   };
 }
