@@ -1,0 +1,583 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SwiftLend LOS Prototype</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" integrity="sha512-SnH5WK+bZxgPHs44uWix+LLJAJ9/2PkPKZ5QiAj6Ta86w+fsb2TkR4j8R+4P9Q+M9K5x4h7C2f8y+5l6M5x5vA==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+  <style>
+    body { font-family: 'Inter', sans-serif; }
+    .glass-card { background: rgba(255,255,255,0.75); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.65); }
+    .pulse-cta { animation: pulseGlow 1.8s infinite; }
+    .spin { animation: spin 0.9s linear infinite; }
+    .float-badge { animation: floatY 2.4s ease-in-out infinite; }
+    .fade-up { animation: fadeUp .45s ease; }
+    .confetti-piece { position: absolute; width: 8px; height: 14px; top: -20px; opacity: .9; animation: fall 2.8s linear forwards; }
+    @keyframes spin { to { transform: rotate(360deg);} }
+    @keyframes pulseGlow {
+      0%,100% { box-shadow: 0 0 0 0 rgba(30,64,175,0.38); }
+      50% { box-shadow: 0 0 0 14px rgba(30,64,175,0); }
+    }
+    @keyframes floatY {
+      0%,100% { transform: translateY(0);} 50% { transform: translateY(-6px);} }
+    @keyframes fadeUp { from { opacity: 0; transform: translateY(8px);} to { opacity: 1; transform: translateY(0);} }
+    @keyframes fall { to { transform: translateY(600px) rotate(540deg); opacity: 0; } }
+  </style>
+</head>
+<body class="bg-slate-100 min-h-screen text-slate-800">
+  <div class="max-w-7xl mx-auto px-4 py-8">
+    <header class="mb-8">
+      <div class="flex items-center justify-between mb-5">
+        <div>
+          <h1 class="text-2xl font-extrabold text-slate-900">SwiftLend</h1>
+          <p class="text-sm text-slate-600">Loan Origination System · Parallel Initiation Engine</p>
+        </div>
+        <div class="text-right">
+          <p class="text-xs text-slate-500">Session</p>
+          <p id="session-id" class="font-semibold text-slate-900"></p>
+        </div>
+      </div>
+      <div id="stepper" class="grid grid-cols-5 gap-2"></div>
+    </header>
+
+    <main>
+      <section id="step-1" class="step-section"></section>
+      <section id="step-2" class="step-section hidden"></section>
+      <section id="step-3" class="step-section hidden"></section>
+      <section id="step-4" class="step-section hidden"></section>
+      <section id="step-5" class="step-section hidden"></section>
+    </main>
+  </div>
+
+<script>
+const loanState = {
+  currentStep: 1,
+  sessionId: `SL-${Math.floor(100000 + Math.random() * 900000)}`,
+  customerName: '',
+  mobile: '',
+  loanType: '',
+  pincode: '',
+  loanAmount: '',
+  ocrComplete: false,
+  checksComplete: false,
+  parallelInitiated: false,
+  legalQuery: false,
+  approvedAmount: '',
+  finalLtv: '68%',
+  dscr: '1.71',
+  interestRate: '10.35% p.a.',
+  tenure: '180 months',
+  sanctionGenerated: false,
+  disbursementDone: false,
+  transactionRef: '',
+  disbursementTs: ''
+};
+
+const steps = [
+  'Sourcing & Onboarding',
+  'System Login',
+  'L&T Command Center',
+  'Sanction & Decisioning',
+  'Disbursement'
+];
+
+const legalVendors = [
+  { range: [110000, 199999], vendor: 'Sharma Legal Associates' },
+  { range: [200000, 399999], vendor: 'Mitra & Rao Legal' },
+  { range: [400000, 699999], vendor: 'Apex Legal Chambers' },
+  { range: [700000, 999999], vendor: 'Veritas Property Law LLP' }
+];
+
+let checkIntervals = [];
+let parallelTimers = [];
+
+function formatINRInput(value) {
+  const raw = value.replace(/\D/g, '');
+  if (!raw) return '';
+  return Number(raw).toLocaleString('en-IN');
+}
+
+function parseINR(value) {
+  return Number((value || '').replace(/,/g, '')) || 0;
+}
+
+function renderStepper() {
+  const stepper = document.getElementById('stepper');
+  stepper.innerHTML = steps.map((label, idx) => {
+    const num = idx + 1;
+    const isCurrent = num === loanState.currentStep;
+    const isDone = num < loanState.currentStep;
+    return `
+      <div class="rounded-xl p-3 border ${isCurrent ? 'bg-blue-900 border-blue-800 text-white' : isDone ? 'bg-emerald-50 border-emerald-300 text-emerald-700' : 'bg-white border-slate-200 text-slate-500'} transition-all">
+        <div class="flex items-center gap-2 mb-1 text-xs font-semibold uppercase tracking-wide">
+          <span class="w-5 h-5 rounded-full flex items-center justify-center text-[11px] ${isCurrent ? 'bg-white/20' : isDone ? 'bg-emerald-100' : 'bg-slate-100'}">
+            ${isDone ? '<i class="fa-solid fa-check text-emerald-600"></i>' : num}
+          </span>
+          Step ${num}
+        </div>
+        <p class="text-xs md:text-sm font-medium leading-tight">${label}</p>
+      </div>
+    `;
+  }).join('');
+}
+
+function updateSessionUI() {
+  document.getElementById('session-id').textContent = loanState.sessionId;
+}
+
+function showStep(stepNo) {
+  loanState.currentStep = stepNo;
+  document.querySelectorAll('.step-section').forEach((el, idx) => {
+    el.classList.toggle('hidden', idx !== stepNo - 1);
+  });
+  renderStepper();
+  renderStep(stepNo);
+}
+
+function nextStep() {
+  if (loanState.currentStep < 5) showStep(loanState.currentStep + 1);
+}
+
+function prevStep() {
+  if (loanState.currentStep > 1) showStep(loanState.currentStep - 1);
+}
+
+function vendorFromPincode(pin) {
+  const p = Number(pin);
+  const matched = legalVendors.find(v => p >= v.range[0] && p <= v.range[1]);
+  return (matched || legalVendors[0]).vendor;
+}
+
+function updateStep1NextState() {
+  const required = loanState.customerName && loanState.mobile && loanState.loanType && loanState.pincode && loanState.loanAmount;
+  const btn = document.getElementById('step1-next');
+  if (!btn) return;
+  btn.disabled = !(required && loanState.ocrComplete);
+  btn.className = `px-6 py-3 rounded-lg font-semibold transition ${btn.disabled ? 'bg-slate-300 text-slate-500 cursor-not-allowed' : 'bg-blue-900 text-white hover:bg-blue-800'}`;
+}
+
+function renderStep1() {
+  const el = document.getElementById('step-1');
+  el.innerHTML = `
+    <div class="glass-card rounded-2xl p-6 md:p-8 shadow-xl fade-up">
+      <h2 class="text-xl font-bold text-slate-900 mb-1">Step 1 · Sourcing & Digital Onboarding</h2>
+      <p class="text-sm text-slate-600 mb-6">Capture borrower profile and complete AI OCR validation before activating LOS flow.</p>
+      <div class="grid md:grid-cols-2 gap-4 mb-6">
+        <label class="text-sm font-medium">Customer Name
+          <input id="customerName" value="${loanState.customerName}" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 focus:ring-2 focus:ring-blue-300 outline-none" placeholder="e.g., Rajesh Mehta" />
+        </label>
+        <label class="text-sm font-medium">Mobile Number
+          <input id="mobile" value="${loanState.mobile}" maxlength="10" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 focus:ring-2 focus:ring-blue-300 outline-none" placeholder="10-digit mobile" />
+        </label>
+        <label class="text-sm font-medium">Loan Type
+          <select id="loanType" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 focus:ring-2 focus:ring-blue-300 outline-none">
+            <option value="">Select loan type</option>
+            ${['LAP','Home Loan','Working Capital'].map(x=>`<option ${loanState.loanType===x?'selected':''}>${x}</option>`).join('')}
+          </select>
+        </label>
+        <label class="text-sm font-medium">Property Pincode
+          <input id="pincode" value="${loanState.pincode}" maxlength="6" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 focus:ring-2 focus:ring-blue-300 outline-none" placeholder="e.g., 400001" />
+        </label>
+        <label class="text-sm font-medium md:col-span-2">Loan Amount (₹)
+          <input id="loanAmount" value="${loanState.loanAmount}" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 focus:ring-2 focus:ring-blue-300 outline-none" placeholder="e.g., 75,00,000" />
+        </label>
+      </div>
+
+      <div class="bg-slate-50 border border-slate-200 rounded-xl p-4 mb-6">
+        <h3 class="font-semibold text-slate-800 mb-3">Document Upload & OCR Validation</h3>
+        <div class="grid md:grid-cols-2 gap-3 text-sm mb-4">
+          <div class="p-3 bg-white rounded-lg border border-slate-200 flex items-center justify-between"><span>KYC Documents</span><span class="text-emerald-600 font-medium">Uploaded</span></div>
+          <div class="p-3 bg-white rounded-lg border border-slate-200 flex items-center justify-between"><span>Property Papers</span><span class="text-emerald-600 font-medium">Uploaded</span></div>
+        </div>
+        <div class="mb-2 flex items-center justify-between text-sm">
+          <span class="font-medium">AI OCR Scan</span>
+          <span id="ocr-status" class="text-slate-600">${loanState.ocrComplete ? '7/7 Pages Verified – Clean Copy' : 'Pending scan'}</span>
+        </div>
+        <div class="w-full h-3 bg-slate-200 rounded-full overflow-hidden mb-3">
+          <div id="ocr-bar" class="h-full bg-emerald-500 transition-all duration-300" style="width:${loanState.ocrComplete ? '100' : '0'}%"></div>
+        </div>
+        <button id="ocr-start" class="px-4 py-2 rounded-lg font-medium ${loanState.ocrComplete ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-100 text-blue-800 hover:bg-blue-200'}">${loanState.ocrComplete ? 'OCR Completed' : 'Run OCR Scan'}</button>
+      </div>
+
+      <div class="flex justify-between">
+        <button disabled class="px-6 py-3 rounded-lg font-semibold bg-slate-200 text-slate-500 cursor-not-allowed">Back</button>
+        <button id="step1-next" class="px-6 py-3 rounded-lg font-semibold">Next: System Login</button>
+      </div>
+    </div>
+  `;
+
+  ['customerName','mobile','loanType','pincode','loanAmount'].forEach(id => {
+    document.getElementById(id).addEventListener('input', (e) => {
+      if (id === 'mobile' || id === 'pincode') e.target.value = e.target.value.replace(/\D/g, '');
+      if (id === 'loanAmount') {
+        e.target.value = formatINRInput(e.target.value);
+      }
+      loanState[id] = e.target.value.trim();
+      updateStep1NextState();
+    });
+  });
+
+  document.getElementById('ocr-start').addEventListener('click', () => {
+    if (loanState.ocrComplete) return;
+    const bar = document.getElementById('ocr-bar');
+    const status = document.getElementById('ocr-status');
+    const btn = document.getElementById('ocr-start');
+    let p = 0;
+    btn.disabled = true;
+    btn.textContent = 'Scanning...';
+    const timer = setInterval(() => {
+      p += 14;
+      bar.style.width = Math.min(p, 100) + '%';
+      status.textContent = `Scanning pages... ${Math.min(p, 100)}%`;
+      if (p >= 100) {
+        clearInterval(timer);
+        loanState.ocrComplete = true;
+        status.textContent = '7/7 Pages Verified – Clean Copy';
+        btn.textContent = 'OCR Completed';
+        btn.className = 'px-4 py-2 rounded-lg font-medium bg-emerald-100 text-emerald-700';
+        updateStep1NextState();
+      }
+    }, 260);
+  });
+
+  document.getElementById('step1-next').addEventListener('click', () => {
+    if (!document.getElementById('step1-next').disabled) nextStep();
+  });
+
+  updateStep1NextState();
+}
+
+function renderStep2() {
+  const el = document.getElementById('step-2');
+  el.innerHTML = `
+    <div class="glass-card rounded-2xl p-6 md:p-8 shadow-xl fade-up">
+      <h2 class="text-xl font-bold mb-1">Step 2 · System Login – The Gatekeeper</h2>
+      <p class="text-sm text-slate-600 mb-6">Running pre-activation checks for ${loanState.customerName || 'applicant'}.</p>
+      <div class="grid md:grid-cols-2 gap-4 mb-8">
+        ${['Bureau Check (CIBIL)','Dedupe Check'].map((name, i)=>`
+          <div class="bg-white border border-slate-200 rounded-xl p-4">
+            <p class="font-semibold mb-2">${name}</p>
+            <div id="check-${i}" class="flex items-center gap-2 text-slate-600">
+              <i class="fa-solid fa-spinner spin"></i><span>Processing...</span>
+            </div>
+          </div>
+        `).join('')}
+      </div>
+      <div class="flex items-center justify-between">
+        <button id="step2-back" class="px-6 py-3 rounded-lg font-semibold bg-white border border-slate-300 hover:bg-slate-50">Back</button>
+        <button id="step2-next" disabled class="pulse-cta px-8 py-4 rounded-xl font-bold text-lg bg-slate-300 text-slate-500 cursor-not-allowed">INITIATE PARALLEL WORKFLOW</button>
+      </div>
+    </div>
+  `;
+
+  document.getElementById('step2-back').onclick = prevStep;
+  const nextBtn = document.getElementById('step2-next');
+
+  if (!loanState.checksComplete) {
+    checkIntervals.forEach(t => clearTimeout(t));
+    ['check-0','check-1'].forEach((id, i) => {
+      const timeout = setTimeout(() => {
+        const c = document.getElementById(id);
+        if (!c) return;
+        c.innerHTML = '<i class="fa-solid fa-circle-check text-emerald-600"></i><span class="text-emerald-700 font-medium">Completed</span>';
+        if (i === 1) {
+          loanState.checksComplete = true;
+          nextBtn.disabled = false;
+          nextBtn.className = 'pulse-cta px-8 py-4 rounded-xl font-bold text-lg bg-blue-900 text-white hover:bg-blue-800';
+        }
+      }, 1300 + i * 1200);
+      checkIntervals.push(timeout);
+    });
+  } else {
+    ['check-0','check-1'].forEach((id) => {
+      document.getElementById(id).innerHTML = '<i class="fa-solid fa-circle-check text-emerald-600"></i><span class="text-emerald-700 font-medium">Completed</span>';
+    });
+    nextBtn.disabled = false;
+    nextBtn.className = 'pulse-cta px-8 py-4 rounded-xl font-bold text-lg bg-blue-900 text-white hover:bg-blue-800';
+  }
+
+  nextBtn.onclick = () => {
+    loanState.parallelInitiated = true;
+    nextStep();
+  };
+}
+
+function renderStep3() {
+  const el = document.getElementById('step-3');
+  const vendor = vendorFromPincode(loanState.pincode);
+  el.innerHTML = `
+    <div class="relative glass-card rounded-2xl p-6 md:p-8 shadow-xl fade-up overflow-hidden">
+      <div class="mb-5 flex flex-wrap items-center gap-3 justify-between">
+        <div>
+          <h2 class="text-xl font-bold">Step 3 · L&T Command Center</h2>
+          <p class="text-sm text-slate-600">${loanState.customerName} · ₹${loanState.loanAmount || '0'} · PIN ${loanState.pincode}</p>
+        </div>
+        <div class="float-badge bg-emerald-600 text-white px-4 py-2 rounded-full text-sm font-semibold shadow-lg">TAT Saved: 72 Hours — Automation Active</div>
+      </div>
+
+      <div class="grid lg:grid-cols-3 gap-4 mb-5">
+        <div class="bg-white border border-slate-200 rounded-xl p-4">
+          <div class="flex items-center justify-between mb-2"><h3 class="font-semibold">CREDIT</h3><i class="fa-solid fa-coins text-blue-800"></i></div>
+          <p id="credit-status" class="text-sm text-slate-600 mb-3">Financial Underwriting In Progress</p>
+          <div class="space-y-2 text-sm">
+            <div class="flex items-center justify-between"><span>ITR Review</span><span id="itr-state" class="text-amber-600">In progress</span></div>
+            <div class="flex items-center justify-between"><span>Balance Sheet Analysis</span><span id="bs-state" class="text-slate-500">Queued</span></div>
+          </div>
+          <div class="w-full h-2 bg-slate-200 rounded-full mt-4 overflow-hidden"><div id="credit-bar" class="h-full bg-blue-800" style="width:8%"></div></div>
+        </div>
+
+        <div id="legal-track" class="bg-white border border-slate-200 rounded-xl p-4 transition-colors">
+          <div class="flex items-center justify-between mb-2"><h3 class="font-semibold">LEGAL INITIATION</h3><i class="fa-solid fa-scale-balanced text-blue-800"></i></div>
+          <p id="legal-status" class="text-sm text-slate-600 mb-2">Auto-Assigning Vendor…</p>
+          <p id="legal-vendor" class="text-sm font-medium text-slate-700 mb-2">Pending assignment</p>
+          <p class="text-xs text-slate-500">13-Year Legal Search Triggered</p>
+        </div>
+
+        <div class="bg-white border border-slate-200 rounded-xl p-4">
+          <div class="flex items-center justify-between mb-2"><h3 class="font-semibold">TECHNICAL INITIATION</h3><i class="fa-solid fa-location-dot text-blue-800"></i></div>
+          <p id="tech-status" class="text-sm text-slate-600 mb-2">Geotagging Property…</p>
+          <div class="bg-slate-100 border border-slate-200 rounded-lg h-24 flex items-center justify-center text-sm text-slate-500 mb-2">Lat 19.0760°N · Long 72.8777°E</div>
+          <p id="tech-sub" class="text-sm font-medium text-slate-700">Awaiting dispatch</p>
+        </div>
+      </div>
+
+      <div class="flex flex-wrap items-center justify-between gap-4">
+        <label class="inline-flex items-center gap-3 cursor-pointer">
+          <input id="legal-query" type="checkbox" class="sr-only" ${loanState.legalQuery ? 'checked':''}>
+          <span id="toggle-shell" class="relative w-12 h-7 rounded-full transition ${loanState.legalQuery ? 'bg-amber-500' : 'bg-slate-300'}">
+            <span id="toggle-dot" class="absolute top-1 w-5 h-5 bg-white rounded-full transition ${loanState.legalQuery ? 'left-6':'left-1'}"></span>
+          </span>
+          <span class="font-medium">Simulate Legal Query</span>
+        </label>
+
+        <div class="flex gap-3">
+          <button id="step3-back" class="px-6 py-3 rounded-lg font-semibold bg-white border border-slate-300 hover:bg-slate-50">Back</button>
+          <button id="step3-next" class="px-6 py-3 rounded-lg font-semibold bg-blue-900 text-white hover:bg-blue-800">Next: Decisioning</button>
+        </div>
+      </div>
+    </div>
+  `;
+
+  document.getElementById('step3-back').onclick = prevStep;
+  document.getElementById('step3-next').onclick = nextStep;
+
+  function applyLegalQueryState() {
+    const on = loanState.legalQuery;
+    document.getElementById('toggle-shell').className = `relative w-12 h-7 rounded-full transition ${on ? 'bg-amber-500' : 'bg-slate-300'}`;
+    document.getElementById('toggle-dot').className = `absolute top-1 w-5 h-5 bg-white rounded-full transition ${on ? 'left-6':'left-1'}`;
+    const track = document.getElementById('legal-track');
+    const status = document.getElementById('legal-status');
+    if (on) {
+      track.classList.add('bg-amber-50','border-amber-300');
+      status.textContent = 'Query Raised – Missing Document';
+      status.className = 'text-sm text-amber-700 mb-2 font-medium';
+    } else {
+      track.classList.remove('bg-amber-50','border-amber-300');
+      status.textContent = 'Assigned to legal vendor';
+      status.className = 'text-sm text-emerald-700 mb-2 font-medium';
+    }
+  }
+
+  document.getElementById('legal-query').addEventListener('change', (e) => {
+    loanState.legalQuery = e.target.checked;
+    applyLegalQueryState();
+  });
+
+  parallelTimers.forEach(t => clearTimeout(t));
+  document.getElementById('legal-vendor').textContent = 'Pending assignment';
+  document.getElementById('legal-status').textContent = 'Auto-Assigning Vendor…';
+  document.getElementById('tech-status').textContent = 'Geotagging Property…';
+
+  let progress = 8;
+  const creditBar = document.getElementById('credit-bar');
+  const creditTimer = setInterval(() => {
+    progress += 4;
+    creditBar.style.width = Math.min(progress, 96) + '%';
+    if (progress >= 40) document.getElementById('itr-state').innerHTML = '<span class="text-emerald-600">Completed</span>';
+    if (progress >= 52) document.getElementById('bs-state').innerHTML = '<span class="text-amber-600">In progress</span>';
+    if (progress >= 88) {
+      document.getElementById('credit-status').textContent = 'Credit analysis near completion';
+      document.getElementById('bs-state').innerHTML = '<span class="text-emerald-600">Completed</span>';
+      clearInterval(creditTimer);
+      creditBar.style.width = '100%';
+    }
+  }, 250);
+
+  parallelTimers.push(setTimeout(() => {
+    document.getElementById('legal-vendor').textContent = `Assigned to: ${vendor}`;
+    document.getElementById('legal-status').textContent = 'Assigned to legal vendor';
+    document.getElementById('legal-status').className = 'text-sm text-emerald-700 mb-2 font-medium';
+    applyLegalQueryState();
+  }, 1400));
+
+  parallelTimers.push(setTimeout(() => {
+    document.getElementById('tech-status').textContent = 'Valuer Dispatched';
+    document.getElementById('tech-status').className = 'text-sm text-emerald-700 mb-2 font-medium';
+    document.getElementById('tech-sub').textContent = 'Site visit ETA: 02:30 PM';
+  }, 1650));
+}
+
+function renderStep4() {
+  const baseAmt = parseINR(loanState.loanAmount);
+  const approved = loanState.approvedAmount || Math.round(baseAmt * 0.92).toLocaleString('en-IN');
+  loanState.approvedAmount = approved;
+
+  const el = document.getElementById('step-4');
+  el.innerHTML = `
+    <div class="glass-card rounded-2xl p-6 md:p-8 shadow-xl fade-up">
+      <h2 class="text-xl font-bold mb-1">Step 4 · Sanction & Decisioning</h2>
+      <p class="text-sm text-slate-600 mb-6">Deal sheet auto-compiled from parallel underwriting tracks.</p>
+
+      <div class="bg-white border border-slate-200 rounded-xl p-5 mb-6">
+        <h3 class="font-semibold text-slate-900 mb-4">Credit Memo — ${loanState.customerName}</h3>
+        <div class="grid md:grid-cols-2 gap-4 text-sm">
+          <div class="flex justify-between p-3 bg-slate-50 rounded-lg"><span>Approved Loan Amount</span><span class="font-semibold">₹${approved}</span></div>
+          <div class="flex justify-between p-3 bg-slate-50 rounded-lg"><span>Final LTV</span><span class="font-semibold">${loanState.finalLtv}</span></div>
+          <div class="flex justify-between p-3 bg-slate-50 rounded-lg"><span>DSCR</span><span class="font-semibold">${loanState.dscr}</span></div>
+          <div class="flex justify-between p-3 bg-slate-50 rounded-lg"><span>Interest Rate</span><span class="font-semibold">${loanState.interestRate}</span></div>
+          <div class="flex justify-between p-3 bg-slate-50 rounded-lg md:col-span-2"><span>Tenure</span><span class="font-semibold">${loanState.tenure}</span></div>
+        </div>
+      </div>
+
+      <div class="flex justify-between items-center">
+        <button id="step4-back" class="px-6 py-3 rounded-lg font-semibold bg-white border border-slate-300 hover:bg-slate-50">Back</button>
+        <div class="flex items-center gap-3">
+          <button id="gen-sanction" class="px-6 py-3 rounded-lg font-semibold ${loanState.sanctionGenerated ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-900 text-white hover:bg-blue-800'}">${loanState.sanctionGenerated ? 'Sanction Letter Generated' : 'Generate Sanction Letter'}</button>
+          <button id="step4-next" ${loanState.sanctionGenerated ? '' : 'disabled'} class="px-6 py-3 rounded-lg font-semibold ${loanState.sanctionGenerated ? 'bg-blue-900 text-white hover:bg-blue-800' : 'bg-slate-300 text-slate-500 cursor-not-allowed'}">Next: Disbursement</button>
+        </div>
+      </div>
+      <p id="sanction-status" class="text-sm mt-3 ${loanState.sanctionGenerated ? 'text-emerald-700' : 'text-slate-500'}">${loanState.sanctionGenerated ? 'PDF generated successfully with e-sign markers.' : 'Generate letter to proceed to operations.'}</p>
+    </div>
+  `;
+
+  document.getElementById('step4-back').onclick = prevStep;
+  document.getElementById('step4-next').onclick = () => { if (loanState.sanctionGenerated) nextStep(); };
+
+  document.getElementById('gen-sanction').onclick = () => {
+    if (loanState.sanctionGenerated) return;
+    const btn = document.getElementById('gen-sanction');
+    const st = document.getElementById('sanction-status');
+    btn.innerHTML = '<i class="fa-solid fa-spinner spin mr-2"></i>Generating PDF...';
+    btn.className = 'px-6 py-3 rounded-lg font-semibold bg-blue-800 text-white';
+    setTimeout(() => {
+      loanState.sanctionGenerated = true;
+      btn.innerHTML = '<i class="fa-solid fa-circle-check mr-2"></i>Sanction Letter Generated';
+      btn.className = 'px-6 py-3 rounded-lg font-semibold bg-emerald-100 text-emerald-700';
+      st.textContent = 'PDF generated successfully with e-sign markers.';
+      st.className = 'text-sm mt-3 text-emerald-700';
+      const next = document.getElementById('step4-next');
+      next.disabled = false;
+      next.className = 'px-6 py-3 rounded-lg font-semibold bg-blue-900 text-white hover:bg-blue-800';
+    }, 1700);
+  };
+}
+
+function spawnConfetti(container) {
+  const colors = ['#1d4ed8','#10b981','#f59e0b','#0f172a','#22c55e'];
+  for (let i = 0; i < 90; i++) {
+    const c = document.createElement('div');
+    c.className = 'confetti-piece';
+    c.style.left = Math.random() * 100 + '%';
+    c.style.background = colors[Math.floor(Math.random()*colors.length)];
+    c.style.animationDelay = (Math.random() * 0.6) + 's';
+    c.style.transform = `rotate(${Math.random()*180}deg)`;
+    container.appendChild(c);
+    setTimeout(() => c.remove(), 3400);
+  }
+}
+
+function renderStep5() {
+  const el = document.getElementById('step-5');
+  el.innerHTML = `
+    <div class="relative glass-card rounded-2xl p-6 md:p-8 shadow-xl fade-up overflow-hidden" id="disb-wrap">
+      <h2 class="text-xl font-bold mb-1">Step 5 · Disbursement & Operations</h2>
+      <p class="text-sm text-slate-600 mb-6">Finalize beneficiary setup and execute disbursement.</p>
+
+      <div class="grid md:grid-cols-2 gap-4 mb-5">
+        <label class="text-sm font-medium">Beneficiary Bank Account
+          <input id="bank-ac" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 focus:ring-2 focus:ring-blue-300 outline-none" placeholder="e.g., 22090100045678" />
+        </label>
+        <label class="text-sm font-medium">IFSC Code
+          <input id="ifsc" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 focus:ring-2 focus:ring-blue-300 outline-none" placeholder="e.g., HDFC0002451" />
+        </label>
+      </div>
+
+      <div class="bg-white border border-slate-200 rounded-xl p-4 mb-6">
+        <h3 class="font-semibold mb-3">Pre-Disbursement Conditions (PDD)</h3>
+        <div class="grid md:grid-cols-2 gap-2 text-sm">
+          <label class="flex items-center gap-2"><input type="checkbox" class="pdd"> Original property papers lodged</label>
+          <label class="flex items-center gap-2"><input type="checkbox" class="pdd"> Insurance policy active</label>
+          <label class="flex items-center gap-2"><input type="checkbox" class="pdd"> ACH mandate signed</label>
+          <label class="flex items-center gap-2"><input type="checkbox" class="pdd"> Sanction acceptance received</label>
+        </div>
+      </div>
+
+      <div class="flex items-center justify-between">
+        <button id="step5-back" class="px-6 py-3 rounded-lg font-semibold bg-white border border-slate-300 hover:bg-slate-50">Back</button>
+        <button id="complete-disb" class="px-8 py-3 rounded-lg font-bold bg-blue-900 text-white hover:bg-blue-800">Disbursement Complete</button>
+      </div>
+
+      <div id="done-panel" class="mt-6 hidden bg-emerald-50 border border-emerald-300 rounded-xl p-4">
+        <div class="flex items-start gap-3">
+          <i class="fa-solid fa-circle-check text-emerald-600 text-xl mt-1"></i>
+          <div>
+            <p class="font-bold text-emerald-800">Funds Released Successfully</p>
+            <p id="txn-ref" class="text-sm text-emerald-700"></p>
+            <p id="txn-time" class="text-sm text-emerald-700"></p>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+
+  document.getElementById('step5-back').onclick = prevStep;
+
+  document.getElementById('complete-disb').onclick = () => {
+    const account = document.getElementById('bank-ac').value.trim();
+    const ifsc = document.getElementById('ifsc').value.trim().toUpperCase();
+    const checks = [...document.querySelectorAll('.pdd')].every(c => c.checked);
+    if (!account || !ifsc || !checks) {
+      alert('Please fill bank details and complete all PDD checklist items.');
+      return;
+    }
+    if (loanState.disbursementDone) return;
+    const btn = document.getElementById('complete-disb');
+    btn.innerHTML = '<i class="fa-solid fa-spinner spin mr-2"></i>Processing Transfer...';
+    btn.className = 'px-8 py-3 rounded-lg font-bold bg-blue-800 text-white';
+
+    setTimeout(() => {
+      loanState.disbursementDone = true;
+      loanState.transactionRef = `UTR${Math.floor(1000000000 + Math.random()*9000000000)}`;
+      loanState.disbursementTs = new Date().toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'medium' });
+      document.getElementById('txn-ref').textContent = `Transaction Ref: ${loanState.transactionRef}`;
+      document.getElementById('txn-time').textContent = `Timestamp: ${loanState.disbursementTs}`;
+      document.getElementById('done-panel').classList.remove('hidden');
+      btn.innerHTML = '<i class="fa-solid fa-check mr-2"></i>Disbursement Completed';
+      btn.className = 'px-8 py-3 rounded-lg font-bold bg-emerald-600 text-white';
+      spawnConfetti(document.getElementById('disb-wrap'));
+    }, 1900);
+  };
+}
+
+function renderStep(stepNo) {
+  if (stepNo === 1) renderStep1();
+  if (stepNo === 2) renderStep2();
+  if (stepNo === 3) renderStep3();
+  if (stepNo === 4) renderStep4();
+  if (stepNo === 5) renderStep5();
+}
+
+function init() {
+  updateSessionUI();
+  renderStepper();
+  renderStep(1);
+}
+
+init();
+</script>
+</body>
+</html>
